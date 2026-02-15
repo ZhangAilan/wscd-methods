@@ -6,7 +6,7 @@ backbone:
 scheme: transwcd_single # transwcd_single, transwcd_dual
 
 dataset:
-  root_dir: D:\project\CD\Dataset\WHU-CD-256
+  root_dir: E:\weakly_CD_dataset\WHU-CD-256\WHU-CD-256
   name_list_dir: datasets/WHU
   num_classes: 2
   crop_size: 256

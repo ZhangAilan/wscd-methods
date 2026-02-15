@@ -14,7 +14,7 @@ pip install git+https://github.com/lucasb-eyer/pydensecrf.git
 - [LEVIR-CD-256](https://www.kaggle.com/datasets/keykeylv/levir-cd-256)
 
 
-## TransWCD
+## [TransWCD](https://github.com/zhenghuizhao/TransWCD)
 预训练权重```TransWCD/transwcd/pretrained```  [mit_b1.pth](https://drive.google.com/file/d/11Tf0NCm1ry_vmqqoCcKTdtmDEAA_PhTQ/view?usp=sharing)
 
 修改```TransWCD/transwcd/configs/WHU.yaml```中```root_dir```为数据集路径

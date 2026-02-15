@@ -1,0 +1,16 @@
+__pycache__/
+**/__pycache__/
+ACWCD/pretrained/mit_b1.pth
+TransWCD/transwcd/pretrained/mit_b1.pth
+TransWCD/transwcd_sa/pretrained/mit_b1.pth
+.vscode/
+
+TransWCD/transwcd/work_dir_WHU/
+TransWCD/transwcd_sa/work_dir_WHU/
+
+ACWCD/
+bgmix/
+CS-WSCDNet/
+FCD-GAN-pytorch/
+MS-Former/
+WSLCD/

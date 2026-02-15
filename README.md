@@ -20,3 +20,10 @@ pip install git+https://github.com/lucasb-eyer/pydensecrf.git
 修改```TransWCD/transwcd/configs/WHU.yaml```中```root_dir```为数据集路径
 
 结果保存在```TransWCD/transwcd/work_dir_WHU/```
+
+
+## [ACWCD](https://github.com/WenhaoLiu03/ACWCD)
+
+预训练权重```ACWCD/pretrained```  [mit_b1.pth](https://drive.google.com/file/d/11Tf0NCm1ry_vmqqoCcKTdtmDEAA_PhTQ/view?usp=sharing)
+
+WHU-CD数据：```ACWCD\configs\BCD.yaml```，修改```root_dir```为数据集路径

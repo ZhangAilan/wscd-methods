@@ -9,8 +9,11 @@ TransWCD/transwcd/work_dir_WHU/
 TransWCD/transwcd_sa/work_dir_WHU/
 ACWCD/work_dir_WHU/
 
-bgmix/
+bgmix/saved_models/
+bgmix/result_images/
+
+
 CS-WSCDNet/
 FCD-GAN-pytorch/
 MS-Former/
-WSLCD/
+bgmix/

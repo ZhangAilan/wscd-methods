@@ -19,7 +19,9 @@ import argparse
 parser = argparse.ArgumentParser(description='PyTorch change detection (weakly supervised)')
 parser.add_argument( '--model', default='cam', type=str)
 parser.add_argument( '--backbone', default='resnet18', type=str)
-parser.add_argument( '--dataset', default='BCD200', type=str)
+parser.add_argument( '--dataset', default='CLCD256', type=str,
+                    choices=['CLCD256', 'DSIFN256', 'GCD256', 'WHU', 'LEVIR'],
+                    help='Dataset name: CLCD256, DSIFN256, GCD256, WHU, LEVIR')
 parser.add_argument( '--batchsize', default=64, type=int)
 parser.add_argument( '--epoch', default=30, type=int)
 parser.add_argument('--gpu_id', default='0,1', type=str)
@@ -27,7 +29,10 @@ parser.add_argument('--workers', default=8, type=int)
 parser.add_argument('--lr', default=0.01, type=float)
 parser.add_argument('--schedule', type=int, nargs='+', default=[15])
 parser.add_argument( '--accpath', default='result', type=str)
-parser.add_argument( '--pklpath', default='E:/results/weakly_cd', type=str)
+parser.add_argument( '--pklpath', required=True, type=str,
+                    help='Required: Path to model checkpoint file')
+parser.add_argument( '--data_root', required=True, type=str,
+                    help='Required: Root directory of the dataset')
 parser.add_argument( '--imgsize', default=256, type=int)
 parser.add_argument( '--out_stride', default=8, type=int)
 parser.add_argument( '--mode', default='mlr', type=str)
@@ -39,7 +44,7 @@ parser.add_argument( '--multiscale', default='multiscale', type=str)
 parser.add_argument( '--weightcls', default='weightcls', type=str)
 args = parser.parse_args()
 def max_norm(p, version='torch', e=1e-7):
-    if version is 'torch':
+    if version == 'torch':
         if p.dim() == 3:
             C, H, W = p.size()
             p = F.relu(p)
@@ -52,7 +57,7 @@ def max_norm(p, version='torch', e=1e-7):
             max_v = torch.max(p.view(N,C,-1),dim=-1)[0].view(N,C,1,1)
             min_v = torch.min(p.view(N,C,-1),dim=-1)[0].view(N,C,1,1)
             p = F.relu(p-min_v-e)/(max_v-min_v+e)
-    elif version is 'numpy' or version is 'np':
+    elif version == 'numpy' or version == 'np':
         if p.ndim == 3:
             C, H, W = p.shape
             p[p<0] = 0
@@ -98,6 +103,10 @@ if __name__ == '__main__':
         args.imgsize=256
     elif args.dataset=='GCD256':
         args.imgsize=256
+    elif args.dataset=='WHU':
+        args.imgsize=256
+    elif args.dataset=='LEVIR':
+        args.imgsize=256
     use_cuda=True
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
     model = model.Net_sig(output_stride=args.out_stride,backbone=args.backbone,multiscale=args.multiscale)
@@ -115,23 +124,30 @@ if __name__ == '__main__':
     model.cuda()
     model.eval()
 
-    train1_dir='E:/CD_dataset/'+datasetname+'_0.2test/train/A'
-    train2_dir='E:/CD_dataset/'+datasetname+'_0.2test/train/B'
-    label_train='E:/CD_dataset/'+datasetname+'_0.2test/train/label'
-
-    val1_dir='E:/CD_dataset/'+datasetname+'/val/A'
-    val2_dir='E:/CD_dataset/'+datasetname+'/val/B'
-    label_val='E:/CD_dataset/'+datasetname+'/val/label'
-
-    train_dataset = LoadDatasetFromFolder(suffix, train1_dir, train2_dir, label_train, img_size=args.imgsize, is_train=False)
-    train_data_loader = DataLoader(train_dataset, batch_size=batchsize, num_workers=4, pin_memory=True)
+    # 构建数据集路径 (通用路径结构)
+    test1_dir = os.path.join(args.data_root, 'test', 'A')
+    test2_dir = os.path.join(args.data_root, 'test', 'B')
+    label_test = os.path.join(args.data_root, 'test', 'label')
     
-    bar = Bar('Processing', max=len(train_data_loader))
+    # 如果 test 目录不存在，使用 val 目录
+    if not os.path.exists(test1_dir):
+        test1_dir = os.path.join(args.data_root, 'val', 'A')
+        test2_dir = os.path.join(args.data_root, 'val', 'B')
+        label_test = os.path.join(args.data_root, 'val', 'label')
+    
+    if not os.path.exists(label_test):
+        raise ValueError(f"Cannot find label directory: {label_test}\n"
+                       f"Please organize data as: {args.data_root}/{{test|val}}/{{A, B, label}}")
+
+    test_dataset = LoadDatasetFromFolder(suffix, test1_dir, test2_dir, label_test, img_size=args.imgsize, is_train=False)
+    test_data_loader = DataLoader(test_dataset, batch_size=batchsize, num_workers=4, pin_memory=True)
+    
+    bar = Bar('Processing', max=len(test_data_loader))
     metrics_singlescale=Metrics(range(2))
-    for batch_idx, (hr1_img, hr2_img, cl_label, seg_label, image_name) in enumerate(train_data_loader):
+    for batch_idx, (hr1_img, hr2_img, cl_label, seg_label, image_name) in enumerate(test_data_loader):
         bar.suffix  = '({batch}/{size}) Total: {total:}'.format(
                         batch=batch_idx + 1,
-                        size=len(train_data_loader),
+                        size=len(test_data_loader),
                         total=bar.elapsed_td,
                         )
         bar.next()

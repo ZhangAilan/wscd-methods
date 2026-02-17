@@ -119,3 +119,17 @@ dataset
     ├── B/          # 时相 2 图像
     └── label/    
 ```
+
+```
+# 训练 WHU 数据集
+python train.py --dataset WHU --data_root D:\project\CD\Dataset\whu_CDC_dataset\images --pklpath ./checkpoints --gpu_id 0
+
+# 训练 LEVIR 数据集
+python train.py --dataset LEVIR --data_root D:\project\CD\Dataset\Levir_CDC_dataset\images --pklpath ./checkpoints --gpu_id 0
+
+# 推理 WHU 数据集
+python infer.py --dataset WHU --data_root D:\project\CD\Dataset\whu_CDC_dataset\images --pklpath ./checkpoints --gpu_id 0
+
+# 推理 LEVIR 数据集
+python infer.py --dataset LEVIR --data_root D:\project\CD\Dataset\Levir_CDC_dataset\images --pklpath ./checkpoints --gpu_id 0
+```

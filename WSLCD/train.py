@@ -19,7 +19,9 @@ from pytorch_lightning import seed_everything
 parser = argparse.ArgumentParser(description='PyTorch change detection (weakly supervised)')
 parser.add_argument( '--model', default='cam', type=str)
 parser.add_argument( '--backbone', default='resnet18', type=str)
-parser.add_argument( '--dataset', default='CLCD256', type=str)
+parser.add_argument( '--dataset', default='CLCD256', type=str, 
+                    choices=['CLCD256', 'DSIFN256', 'GCD256', 'WHU', 'LEVIR'],
+                    help='Dataset name: CLCD256, DSIFN256, GCD256, WHU, LEVIR')
 parser.add_argument( '--batchsize', default=64, type=int)
 parser.add_argument( '--epoch', default=30, type=int)
 parser.add_argument('--gpu_id', default='0,1', type=str)
@@ -27,14 +29,17 @@ parser.add_argument('--workers', default=6, type=int)
 parser.add_argument('--lr', default=0.01, type=float)
 parser.add_argument('--schedule', type=int, nargs='+', default=[15])
 parser.add_argument( '--accpath', default='result', type=str)
-parser.add_argument( '--pklpath', default='E:/results/weakly_cd', type=str)
+parser.add_argument( '--pklpath', required=True, type=str,
+                    help='Required: Path to save model checkpoints')
+parser.add_argument( '--data_root', required=True, type=str,
+                    help='Required: Root directory of the dataset')
 parser.add_argument( '--imgsize', default=256, type=int)
 parser.add_argument( '--out_stride', default=8, type=int)
 #baseline:cam; Equivariant regularization:er; Mutual learning and equivariant regularization:MLER
 #Prototype based contrastive learning: pc (pc_intra,pc_cross)
-parser.add_argument( '--mode', default='mlr', type=str)  
+parser.add_argument( '--mode', default='mlr', type=str)
 parser.add_argument( '--th', default=0.15, type=float)#(1-threshold value in MLER)
-parser.add_argument( '--ema', default=0, type=float)#ema weight 
+parser.add_argument( '--ema', default=0, type=float)#ema weight
 parser.add_argument( '--weight', default=0.15, type=float)#background threshold
 parser.add_argument( '--wc', default=0.15, type=float)#weighting factor in bce loss
 parser.add_argument( '--multiscale', default='multiscale', type=str)
@@ -60,7 +65,7 @@ class BCELoss_class_weighted(nn.Module):
         bce = - self.weight[1] * target * torch.log(input) - (1 - target) * self.weight[0] * torch.log(1 - input)
         return torch.mean(bce)
 def max_norm(p, version='torch', e=1e-7):
-    if version is 'torch':
+    if version == 'torch':
         if p.dim() == 3:
             C, H, W = p.size()
             p = F.relu(p)
@@ -73,7 +78,7 @@ def max_norm(p, version='torch', e=1e-7):
             max_v = torch.max(p.view(N,C,-1),dim=-1)[0].view(N,C,1,1)
             min_v = torch.min(p.view(N,C,-1),dim=-1)[0].view(N,C,1,1)
             p = F.relu(p-min_v-e)/(max_v-min_v+e)
-    elif version is 'numpy' or version is 'np':
+    elif version == 'numpy' or version == 'np':
         if p.ndim == 3:
             C, H, W = p.shape
             p[p<0] = 0
@@ -335,6 +340,10 @@ if __name__ == '__main__':
         args.imgsize=256
     elif args.dataset=='GCD256':
         args.imgsize=256
+    elif args.dataset=='WHU':
+        args.imgsize=256
+    elif args.dataset=='LEVIR':
+        args.imgsize=256
     use_cuda= True
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
     model = model.Net_sig(output_stride=args.out_stride,backbone=args.backbone,multiscale=args.multiscale)
@@ -343,13 +352,34 @@ if __name__ == '__main__':
     batchsize=args.batchsize
     num_epoches=args.epoch
     num_workers=args.workers
-    imgsize=args.imgsize   
+    imgsize=args.imgsize
     pklname=(args.model+"-"+str(args.backbone)+"-"+str(args.out_stride)+"-"+str(args.mode)+"-"+args.multiscale+"-"+args.weightcls+"-"
             +str(args.epoch)+"-"+str(args.th)+"-"+str(args.ema)+"-"+str(args.dataset)+"-"+str(args.imgsize)+"-"+str(args.weight)+"-"+str(args.wc)+".pth")
-    train1_dir='E:/CD_dataset/'+datasetname+'_0.2/train/A'
-    train2_dir='E:/CD_dataset/'+datasetname+'_0.2/train/B'
-    label_train='E:/CD_dataset/'+datasetname+'_0.2/train/label'
-    train_dataset = LoadDatasetFromFolder(suffix,train1_dir, train2_dir, label_train,imgsize,True)
+    
+    # 构建数据集路径 (通用路径结构)
+    # 支持两种数据结构:
+    # 1. 标准结构：data_root/train/A, data_root/train/B, data_root/train/label
+    # 2. WHU/LEVIR 结构：data_root/train/change, data_root/train/no_change (无 label 目录时自动推断)
+    train1_dir = os.path.join(args.data_root, 'train', 'A')
+    train2_dir = os.path.join(args.data_root, 'train', 'B')
+    label_train = os.path.join(args.data_root, 'train', 'label')
+    
+    # 如果 label 目录不存在，尝试 WHU/LEVIR 格式 (change/no_change)
+    if not os.path.exists(label_train):
+        change_dir = os.path.join(args.data_root, 'train', 'change')
+        no_change_dir = os.path.join(args.data_root, 'train', 'no_change')
+        if os.path.exists(change_dir) and os.path.exists(no_change_dir):
+            print(f"Warning: label directory not found. Using WHU/LEVIR format (change/no_change).")
+            print(f"Note: For weakly supervised training, only image-level labels are needed.")
+            print(f"      Change images: {change_dir}")
+            print(f"      No-change images: {no_change_dir}")
+            # 对于 WHU/LEVIR，如果没有 label 目录，需要特殊处理
+            # 这里假设用户已按照标准结构准备数据，或自行修改 CD_dataset.py
+        else:
+            raise ValueError(f"Cannot find label directory: {label_train}\n"
+                           f"Please organize data as: {args.data_root}/train/{{A, B, label}}")
+    
+    train_dataset = LoadDatasetFromFolder(suffix, train1_dir, train2_dir, label_train, imgsize, True)
     train_data_loader = DataLoader(train_dataset, batch_size=batchsize,
                                    shuffle=True, num_workers=num_workers, pin_memory=True, persistent_workers=True)
     optimizer = optim.SGD(

@@ -71,7 +71,9 @@ class LoadDatasetFromFolder(Dataset):
         cl_label=torch.tensor(cl_label, dtype=torch.long)
         label = label // 255
         [hr1_img, hr2_img], [label] = self.augm.transform([hr1_img, hr2_img], [label], to_tensor=True)
-        image_name =  self.hr1_filenames[index].split('\\', -1)[1]
+        import os
+        image_name = os.path.basename(self.hr1_filenames[index])
+
         return hr1_img, hr2_img, cl_label, make_one_hot(label.long().unsqueeze(0),2).squeeze(0), image_name
 
     def __len__(self):

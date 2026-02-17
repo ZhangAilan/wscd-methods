@@ -25,7 +25,7 @@ parser.add_argument( '--dataset', default='CLCD256', type=str,
 parser.add_argument( '--batchsize', default=64, type=int)
 parser.add_argument( '--epoch', default=30, type=int)
 parser.add_argument('--gpu_id', default='0,1', type=str)
-parser.add_argument('--workers', default=6, type=int)
+parser.add_argument('--workers', default=4, type=int)
 parser.add_argument('--lr', default=0.01, type=float)
 parser.add_argument('--schedule', type=int, nargs='+', default=[15])
 parser.add_argument( '--accpath', default='result', type=str)

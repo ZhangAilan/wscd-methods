@@ -141,7 +141,11 @@ if __name__ == '__main__':
 
     test_dataset = LoadDatasetFromFolder(suffix, test1_dir, test2_dir, label_test, img_size=args.imgsize, is_train=False)
     test_data_loader = DataLoader(test_dataset, batch_size=batchsize, num_workers=4, pin_memory=True)
-    
+
+    # 创建预测结果保存目录（与 csv 文件同级）
+    pred_save_dir = os.path.join(args.accpath, os.path.splitext(accname)[0])
+    os.makedirs(pred_save_dir, exist_ok=True)
+
     bar = Bar('Processing', max=len(test_data_loader))
     metrics_singlescale=Metrics(range(2))
     for batch_idx, (hr1_img, hr2_img, cl_label, seg_label, image_name) in enumerate(test_data_loader):
@@ -156,8 +160,20 @@ if __name__ == '__main__':
             cam = F.upsample(cam, args.imgsize, mode='bilinear', align_corners=True)
             cam = cam.cpu().numpy()
         norm_cam_singlescale = max_norm(cam,version='np')
-        metrics_singlescale=get_metrics(norm_cam_singlescale,seg_label,metrics_singlescale,cl_label)  
-    bar.finish()       
+        
+        # 生成并保存二值预测图
+        pred = np.zeros((cl_label.size()[0], args.imgsize, args.imgsize), dtype=np.uint8)
+        pred[norm_cam_singlescale[:, 0, :, :] >= 0.5] = 1
+        pred[torch.where(cl_label == 0)[0].numpy(), :, :] = 0
+        
+        # 保存每张图像的预测结果
+        for i, name in enumerate(image_name):
+            pred_path = os.path.join(pred_save_dir, name)
+            io.imsave(pred_path, pred[i] * 255, check_contrast=False)
+        
+        metrics_singlescale = get_metrics(norm_cam_singlescale, seg_label, metrics_singlescale, cl_label)
+    bar.finish()
+    
     ciou_singlescale=['ciou']+[str(metrics_singlescale.get_fg_iou())]
     presion_singlescale=['presion']+[str(metrics_singlescale.get_precision())]
     recall_singlescale=['recall']+[str(metrics_singlescale.get_recall())]

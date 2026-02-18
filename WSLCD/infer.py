@@ -179,7 +179,13 @@ if __name__ == '__main__':
         all_cl_label_list = []
         all_image_names = []
         
+        # 统计正负样本数量
+        pos_count = 0
+        neg_count = 0
+        
         for batch_idx, (hr1_img, hr2_img, cl_label, seg_label, image_name) in enumerate(test_data_loader):
+            pos_count += torch.sum(cl_label == 1).item()
+            neg_count += torch.sum(cl_label == 0).item()
             with torch.no_grad():
                 cam, _ = model(hr1_img.cuda(), hr2_img.cuda())
                 cam = F.interpolate(cam, size=args.imgsize, mode='bilinear', align_corners=True)
@@ -189,6 +195,8 @@ if __name__ == '__main__':
             all_seg_label_list.append(seg_label)
             all_cl_label_list.append(cl_label)
             all_image_names.extend(image_name)
+        
+        print(f"Dataset: {neg_count} negative samples, {pos_count} positive samples")
         
         # 遍历不同阈值
         for th in threshold_range:

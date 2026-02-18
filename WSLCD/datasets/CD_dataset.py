@@ -64,14 +64,13 @@ class LoadDatasetFromFolder(Dataset):
         hr1_img = np.asarray(Image.open(self.hr1_filenames[index]).convert('RGB'))
         hr2_img = np.asarray(Image.open(self.hr2_filenames[index]).convert('RGB'))
         label = np.asarray(Image.open(self.lab_filenames[index]))
-        if label.max()>0:
-            cl_label=1
+        if label.max() > 0:
+            cl_label = 1
         else:
-            cl_label=0
-        cl_label=torch.tensor(cl_label, dtype=torch.long)
-        label = label // 255
+            cl_label = 0
+        cl_label = torch.tensor(cl_label, dtype=torch.long)
+        label = (label // 255).astype(np.uint8)
         [hr1_img, hr2_img], [label] = self.augm.transform([hr1_img, hr2_img], [label], to_tensor=True)
-        import os
         image_name = os.path.basename(self.hr1_filenames[index])
 
         return hr1_img, hr2_img, cl_label, make_one_hot(label.long().unsqueeze(0),2).squeeze(0), image_name

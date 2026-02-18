@@ -83,7 +83,8 @@ def max_norm(p, version='torch', e=1e-7):
 def get_metrics(norm_cam, seg_label, metrics, cl_label, th=0.5):
     pred = np.zeros((cl_label.size()[0], args.imgsize, args.imgsize))
     pred[norm_cam[:, 0, :, :] >= th] = 1
-    pred[torch.where(cl_label == 0)[0], :, :] = 0
+    # 移除 cl_label 限制，直接比较像素级预测和真值
+    # pred[torch.where(cl_label == 0)[0], :, :] = 0
     pred_tensor = torch.from_numpy(pred)
     seg_label = torch.argmax(seg_label, 1).unsqueeze(1)
     seg_label = (seg_label > 0).float()
@@ -246,7 +247,8 @@ if __name__ == '__main__':
         # 生成并保存二值预测图
         pred = np.zeros((cl_label.size()[0], args.imgsize, args.imgsize), dtype=np.uint8)
         pred[norm_cam_singlescale[:, 0, :, :] >= infer_threshold] = 1
-        pred[torch.where(cl_label == 0)[0].numpy(), :, :] = 0
+        # 移除 cl_label 限制，直接输出模型预测
+        # pred[torch.where(cl_label == 0)[0].numpy(), :, :] = 0
 
         # 保存每张图像的预测结果
         for i, name in enumerate(image_name):

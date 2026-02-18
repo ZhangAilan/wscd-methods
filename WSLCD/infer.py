@@ -216,6 +216,11 @@ if __name__ == '__main__':
     csv_writer.writerow(kappa_singlescale)
     csv_writer.writerow(oa_singlescale)
 
-    print("Single-scale metrics:")
-    print(metrics_singlescale)
+    print(f"Presion: {metrics_singlescale.get_precision()}")
+    print(f"Recall: {metrics_singlescale.get_recall()}")
+    print(f"F1: {metrics_singlescale.get_f_score()}")
+    print(f"MIoU: {metrics_singlescale.get_miou()}")
+    print(f"CIoU: {metrics_singlescale.get_fg_iou()}")
+    print(f"Kappa: {metrics_singlescale.get_kappa()}")
+    print(f"OA: {metrics_singlescale.get_oa()}")
     print("Done!")

@@ -26,12 +26,19 @@ class Metrics:
           actual: the ground truth labels.
           predicted: the predicted labels.
         """
-        a,b=predicted.view(-1).float(),actual.view(-1).float()
-        confusion = predicted.view(-1).float() / actual.view(-1).float()
-        self.tn += torch.sum(torch.isnan(confusion)).item()   #fp
-        self.fp += torch.sum(confusion == float("inf")).item()  #tn
-        self.fn += torch.sum(confusion == 0).item() #fn
-        self.tp += torch.sum(confusion == 1).item() #tp   fn  fp
+        # 二值化
+        actual_bin = (actual > 0.5).float()
+        predicted_bin = (predicted > 0.5).float()
+        
+        # 计算混淆矩阵
+        # TP: actual=1, predicted=1
+        self.tp += torch.sum((actual_bin == 1) & (predicted_bin == 1)).item()
+        # TN: actual=0, predicted=0
+        self.tn += torch.sum((actual_bin == 0) & (predicted_bin == 0)).item()
+        # FP: actual=0, predicted=1
+        self.fp += torch.sum((actual_bin == 0) & (predicted_bin == 1)).item()
+        # FN: actual=1, predicted=0
+        self.fn += torch.sum((actual_bin == 1) & (predicted_bin == 0)).item()
 
     def get_precision(self):
         if self.tp + self.fp == 0:

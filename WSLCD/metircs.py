@@ -34,23 +34,29 @@ class Metrics:
         self.tp += torch.sum(confusion == 1).item() #tp   fn  fp
 
     def get_precision(self):
-
+        if self.tp + self.fp == 0:
+            return float('nan')
         return self.tp / (self.tp + self.fp)
 
     def get_recall(self):
-
+        if self.tp + self.fn == 0:
+            return float('nan')
         return self.tp / (self.tp + self.fn)
 
     def get_f_score(self):
-
-        pr = 2 *(self.tp / (self.tp + self.fp)) * (self.tp / (self.tp + self.fn))
+        if self.tp + self.fp == 0 or self.tp + self.fn == 0:
+            return float('nan')
+        pr = 2 * (self.tp / (self.tp + self.fp)) * (self.tp / (self.tp + self.fn))
         p_r = (self.tp / (self.tp + self.fp)) + (self.tp / (self.tp + self.fn))
+        if p_r == 0:
+            return float('nan')
         return pr / p_r
 
     def get_oa(self):
-        
         t_pn = self.tp + self.tn
         t_tpn = self.tp + self.tn + self.fp + self.fn
+        if t_tpn == 0:
+            return float('nan')
         return t_pn / t_tpn
 
     def get_miou(self):

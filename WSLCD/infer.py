@@ -215,3 +215,7 @@ if __name__ == '__main__':
     csv_writer.writerow(ciou_singlescale)
     csv_writer.writerow(kappa_singlescale)
     csv_writer.writerow(oa_singlescale)
+
+    print("Single-scale metrics:")
+    print(metrics_singlescale)
+    print("Done!")

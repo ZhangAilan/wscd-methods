@@ -43,6 +43,8 @@ parser.add_argument('--weight', default=0.15, type=float)
 parser.add_argument('--wc', default=0.15, type=float)
 parser.add_argument('--multiscale', default='multiscale', type=str)
 parser.add_argument('--weightcls', default='weightcls', type=str)
+parser.add_argument('--infer_th', default=None, type=float,
+                    help='Threshold for binarizing CAM during inference. If None, search best threshold')
 args = parser.parse_args()
 
 
@@ -78,15 +80,14 @@ def max_norm(p, version='torch', e=1e-7):
     return p
 
 
-def get_metrics(norm_cam, seg_label, metrics, cl_label):
+def get_metrics(norm_cam, seg_label, metrics, cl_label, th=0.5):
     pred = np.zeros((cl_label.size()[0], args.imgsize, args.imgsize))
-    th = 0.5
     pred[norm_cam[:, 0, :, :] >= th] = 1
     pred[torch.where(cl_label == 0)[0], :, :] = 0
     pred_tensor = torch.from_numpy(pred)
     seg_label = torch.argmax(seg_label, 1).unsqueeze(1)
     seg_label = (seg_label > 0).float()
-    
+
     # 更新 metrics 对象
     metrics.add(seg_label[:, 0, :, :].float(), pred_tensor.float())
     return metrics
@@ -165,6 +166,58 @@ if __name__ == '__main__':
     bar = Bar('Processing', max=len(test_data_loader))
     metrics_singlescale = Metrics(range(2))
 
+    # 如果未指定阈值，则搜索最优阈值
+    if args.infer_th is None:
+        print("Searching for best threshold...")
+        best_th = 0.5
+        best_f1 = 0
+        threshold_range = np.arange(0.05, 0.95, 0.05)
+        
+        # 先收集所有 CAM 和 label
+        all_cam_list = []
+        all_seg_label_list = []
+        all_cl_label_list = []
+        all_image_names = []
+        
+        for batch_idx, (hr1_img, hr2_img, cl_label, seg_label, image_name) in enumerate(test_data_loader):
+            with torch.no_grad():
+                cam, _ = model(hr1_img.cuda(), hr2_img.cuda())
+                cam = F.interpolate(cam, size=args.imgsize, mode='bilinear', align_corners=True)
+                cam = cam.cpu().numpy()
+            norm_cam = max_norm(cam, version='np')
+            all_cam_list.append(norm_cam)
+            all_seg_label_list.append(seg_label)
+            all_cl_label_list.append(cl_label)
+            all_image_names.extend(image_name)
+        
+        # 遍历不同阈值
+        for th in threshold_range:
+            temp_metrics = Metrics(range(2))
+            for idx in range(len(all_cam_list)):
+                norm_cam_singlescale = all_cam_list[idx]
+                seg_label = all_seg_label_list[idx]
+                cl_label = all_cl_label_list[idx]
+                
+                pred = np.zeros((cl_label.size()[0], args.imgsize, args.imgsize))
+                pred[norm_cam_singlescale[:, 0, :, :] >= th] = 1
+                pred[torch.where(cl_label == 0)[0], :, :] = 0
+                pred_tensor = torch.from_numpy(pred)
+                
+                seg_label_proc = torch.argmax(seg_label, 1).unsqueeze(1)
+                seg_label_proc = (seg_label_proc > 0).float()
+                temp_metrics.add(seg_label_proc[:, 0, :, :].float(), pred_tensor.float())
+            
+            f1 = temp_metrics.get_f_score()
+            if not np.isnan(f1) and f1 > best_f1:
+                best_f1 = f1
+                best_th = th
+        
+        print(f"Best threshold: {best_th:.2f}, Best F1: {best_f1:.4f}")
+        infer_threshold = best_th
+    else:
+        infer_threshold = args.infer_th
+
+    # 使用最优阈值进行推理
     for batch_idx, (hr1_img, hr2_img, cl_label, seg_label, image_name) in enumerate(test_data_loader):
         bar.suffix = '({batch}/{size}) Total: {total:}'.format(
             batch=batch_idx + 1,
@@ -182,7 +235,7 @@ if __name__ == '__main__':
 
         # 生成并保存二值预测图
         pred = np.zeros((cl_label.size()[0], args.imgsize, args.imgsize), dtype=np.uint8)
-        pred[norm_cam_singlescale[:, 0, :, :] >= 0.5] = 1
+        pred[norm_cam_singlescale[:, 0, :, :] >= infer_threshold] = 1
         pred[torch.where(cl_label == 0)[0].numpy(), :, :] = 0
 
         # 保存每张图像的预测结果
@@ -190,7 +243,7 @@ if __name__ == '__main__':
             pred_path = os.path.join(pred_save_dir, name)
             io.imsave(pred_path, pred[i] * 255, check_contrast=False)
 
-        metrics_singlescale = get_metrics(norm_cam_singlescale, seg_label, metrics_singlescale, cl_label)
+        metrics_singlescale = get_metrics(norm_cam_singlescale, seg_label, metrics_singlescale, cl_label, infer_threshold)
 
     bar.finish()
 

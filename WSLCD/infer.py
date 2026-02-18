@@ -205,17 +205,19 @@ if __name__ == '__main__':
                 norm_cam_singlescale = all_cam_list[idx]
                 seg_label = all_seg_label_list[idx]
                 cl_label = all_cl_label_list[idx]
-                
+
                 pred = np.zeros((cl_label.size()[0], args.imgsize, args.imgsize))
                 pred[norm_cam_singlescale[:, 0, :, :] >= th] = 1
                 pred[torch.where(cl_label == 0)[0], :, :] = 0
                 pred_tensor = torch.from_numpy(pred)
-                
+
                 seg_label_proc = torch.argmax(seg_label, 1).unsqueeze(1)
                 seg_label_proc = (seg_label_proc > 0).float()
                 temp_metrics.add(seg_label_proc[:, 0, :, :].float(), pred_tensor.float())
-            
+
             f1 = temp_metrics.get_f_score()
+            print(f"th={th:.2f}: F1={f1:.4f}, P={temp_metrics.get_precision():.4f}, R={temp_metrics.get_recall():.4f}, "
+                  f"TP={temp_metrics.tp}, FP={temp_metrics.fp}, TN={temp_metrics.tn}, FN={temp_metrics.fn}")
             if not np.isnan(f1) and f1 > best_f1:
                 best_f1 = f1
                 best_th = th

@@ -86,7 +86,9 @@ def get_metrics(norm_cam, seg_label, metrics, cl_label):
     pred_tensor = torch.from_numpy(pred)
     seg_label = torch.argmax(seg_label, 1).unsqueeze(1)
     seg_label = (seg_label > 0).float()
-    metrics = seg_label[:, 0, :, :].float(), pred_tensor.float()
+    
+    # 更新 metrics 对象
+    metrics.add(seg_label[:, 0, :, :].float(), pred_tensor.float())
     return metrics
 
 
@@ -173,7 +175,7 @@ if __name__ == '__main__':
 
         with torch.no_grad():
             cam, _ = model(hr1_img.cuda(), hr2_img.cuda())
-            cam = F.upsample(cam, args.imgsize, mode='bilinear', align_corners=True)
+            cam = F.interpolate(cam, size=args.imgsize, mode='bilinear', align_corners=True)
             cam = cam.cpu().numpy()
 
         norm_cam_singlescale = max_norm(cam, version='np')

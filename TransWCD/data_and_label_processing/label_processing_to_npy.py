@@ -9,8 +9,8 @@ import natsort
 
 
 if __name__ == "__main__":
-    file_path = '/data/zhenghui.zhao/Dataset/Change Detection/WHU-CD-256/label'
-    save_path = '/data/zhenghui.zhao/Dataset/Change Detection/WHU-CD-256'
+    file_path = 'D:\project\CD\Dataset\whu_CDC_dataset_converted\label'
+    save_path = 'D:\project\CD\Dataset\whu_CDC_dataset_converted\list'
     file_list = os.listdir(file_path)
     inList = natsort.natsorted(file_list)
 

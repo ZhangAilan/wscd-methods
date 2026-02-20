@@ -22,7 +22,7 @@ parser.add_argument("--save_dir", default="./results/WHU", type=str, help="save_
 parser.add_argument("--eval_set", default="val", type=str, help="eval_set")
 parser.add_argument("--model_path", default="/data/zhenghui.zhao/Code/TransWCD/transwcd/results/test_models/transwcd_iter_28000.pth", type=str, help="model_path")
 parser.add_argument("--root_dir", default=None, type=str, help="override dataset root_dir in config")
-parser.add_argument("--backbone", default=None, type=str, help="override backbone config (e.g., mit_b0, mit_b1, mit_b2)")
+parser.add_argument("--pretrained_backbone", default=None, type=str, help="override backbone config (e.g., mit_b0, mit_b1, mit_b2)")
 
 parser.add_argument("--pooling", default="gmp", type=str, help="pooling method")
 parser.add_argument("--bkg_score", default=0.45, type=float, help="bkg_score")
@@ -115,14 +115,16 @@ def main(cfg):
                                  num_classes=cfg.dataset.num_classes,
                                  embedding_dim=256,
                                  pretrained=True,
-                                 pooling=args.pooling, )
+                                 pooling=args.pooling,
+                                 pretrained_backbone=cfg.backbone.pretrained_backbone, )
     elif cfg.scheme == "transwcd_single":
         transwcd = TransWCD_single(backbone=cfg.backbone.config,
                                    stride=cfg.backbone.stride,
                                    num_classes=cfg.dataset.num_classes,
                                    embedding_dim=256,
                                    pretrained=True,
-                                   pooling=args.pooling, )
+                                   pooling=args.pooling,
+                                   pretrained_backbone=cfg.backbone.pretrained_backbone, )
     else:
         print('Please fill in cfg.scheme!')
 
@@ -162,9 +164,9 @@ if __name__ == "__main__":
         print(f"Override dataset root_dir with: {args.root_dir}")
     
     # 命令行覆盖 backbone config
-    if args.backbone is not None:
-        cfg.backbone.config = args.backbone
-        print(f"Override backbone config with: {args.backbone}")
+    if args.pretrained_backbone is not None:
+        cfg.backbone.pretrained_backbone = args.pretrained_backbone
+        print(f"Override pretrained_backbone config with: {args.pretrained_backbone}")
 
     cfg.cam.bkg_score = args.bkg_score
     print(cfg)

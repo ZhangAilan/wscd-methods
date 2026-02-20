@@ -7,7 +7,7 @@ from . import mix_transformer
 
 
 class TransWCD_dual(nn.Module):
-    def __init__(self, backbone, num_classes=None, embedding_dim=256, stride=None, pretrained=None, pooling=None, ):
+    def __init__(self, backbone, num_classes=None, embedding_dim=256, stride=None, pretrained=None, pooling=None, pretrained_backbone=None):
         super().__init__()
         self.num_classes = num_classes
         self.embedding_dim = embedding_dim
@@ -21,7 +21,7 @@ class TransWCD_dual(nn.Module):
 
         # initilize encoder
         if pretrained:
-            state_dict = torch.load(backbone)
+            state_dict = torch.load(pretrained_backbone)
             state_dict.pop('head.weight')
             state_dict.pop('head.bias')
             self.encoder.load_state_dict(state_dict, )
@@ -80,7 +80,7 @@ class TransWCD_dual(nn.Module):
 
 
 class TransWCD_single(nn.Module):
-    def __init__(self, backbone, num_classes=None, embedding_dim=256, stride=None, pretrained=None, pooling=None, ):
+    def __init__(self, backbone, num_classes=None, embedding_dim=256, stride=None, pretrained=None, pooling=None, pretrained_backbone=None):
         super().__init__()
         self.num_classes = num_classes
         self.embedding_dim = embedding_dim
@@ -94,7 +94,7 @@ class TransWCD_single(nn.Module):
 
         # initilize encoder
         if pretrained:
-            state_dict = torch.load(backbone)
+            state_dict = torch.load(pretrained_backbone)
             state_dict.pop('head.weight')
             state_dict.pop('head.bias')
             self.encoder.load_state_dict(state_dict, )

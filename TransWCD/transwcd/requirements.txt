@@ -3,8 +3,8 @@ torchvision
 imageio
 joblib
 matplotlib
-mmcv
-mmcv_full
+mmengine
+mmcv-lite
 numpy
 omegaconf
 opencv_python

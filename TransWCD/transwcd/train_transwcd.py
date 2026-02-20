@@ -103,6 +103,10 @@ def train(cfg):
     time0 = datetime.datetime.now()
     time0 = time0.replace(microsecond=0)
 
+    # ========== 数据集加载信息 ==========
+    logging.info("=" * 60)
+    logging.info("Loading datasets...")
+    
     train_dataset = weaklyCD.ClsDataset(
         root_dir=cfg.dataset.root_dir,
         name_list_dir=cfg.dataset.name_list_dir,
@@ -114,6 +118,13 @@ def train(cfg):
         img_fliplr=True,
         num_classes=cfg.dataset.num_classes,
     )
+    
+    logging.info(f"  Train dataset: {len(train_dataset)} samples")
+    logging.info(f"    - root_dir: {cfg.dataset.root_dir}")
+    logging.info(f"    - name_list_dir: {cfg.dataset.name_list_dir}")
+    logging.info(f"    - split: {cfg.train.split}")
+    logging.info(f"    - crop_size: {cfg.dataset.crop_size}")
+    logging.info(f"    - batch_size: {cfg.train.batch_size}")
 
     val_dataset = weaklyCD.CDDataset(
         root_dir=cfg.dataset.root_dir,
@@ -123,6 +134,10 @@ def train(cfg):
         aug=False,
         num_classes=cfg.dataset.num_classes,
     )
+    
+    logging.info(f"  Val dataset: {len(val_dataset)} samples")
+    logging.info(f"    - split: {cfg.val.split}")
+    logging.info("=" * 60)
 
     train_loader = DataLoader(train_dataset,
                               batch_size=cfg.train.batch_size,
@@ -140,6 +155,15 @@ def train(cfg):
                             drop_last=False)
     device = torch.device('cuda')
 
+    # ========== 模型信息 ==========
+    print("=" * 60)
+    print("Building model...")
+    print(f"  Scheme: {cfg.scheme}")
+    print(f"  Backbone: {cfg.backbone.config}")
+    print(f"  Stride: {cfg.backbone.stride}")
+    print(f"  Pretrained: {args.pretrained}")
+    print(f"  Pooling: {args.pooling}")
+    
     if cfg.scheme == "transwcd_dual":
         transwcd = TransWCD_dual(backbone=cfg.backbone.config,
                                  stride=cfg.backbone.stride,
@@ -161,7 +185,13 @@ def train(cfg):
     else:
         print("Please choose a baseline structure in /configs/...yaml")
 
-    #logging.info('\nNetwork config: \n%s' % (transwcd))
+    # 打印模型参数量
+    total_params = sum(p.numel() for p in transwcd.parameters())
+    trainable_params = sum(p.numel() for p in transwcd.parameters() if p.requires_grad)
+    print(f"  Total parameters: {total_params:,}")
+    print(f"  Trainable parameters: {trainable_params:,}")
+    print("=" * 60)
+    
     param_groups = transwcd.get_param_groups()
     transwcd.to(device)
 
@@ -201,6 +231,19 @@ def train(cfg):
     bkg_cls = torch.ones(size=(cfg.train.batch_size, 1))
 
     best_F1 = 0.0
+    best_iter = 0
+    
+    # ========== 训练开始信息 ==========
+    print("=" * 60)
+    print("Start training...")
+    print(f"  Max iterations: {cfg.train.max_iters}")
+    print(f"  CAM iters: {cfg.train.cam_iters}")
+    print(f"  Eval iters: {cfg.train.eval_iters}")
+    print(f"  Log iters: {cfg.train.log_iters}")
+    print(f"  Train samples: {len(train_dataset)}")
+    print(f"  Val samples: {len(val_dataset)}")
+    print("=" * 60)
+    
     for n_iter in range(cfg.train.max_iters):
 
         try:
@@ -226,6 +269,13 @@ def train(cfg):
 
         # change classification loss
         cc_loss = F.binary_cross_entropy_with_logits(cls, cls_labels)
+        
+        # ========== 打印正负样本比例 ==========
+        if n_iter == 0:
+            pos_ratio = cls_labels.sum().item() / cls_labels.numel() * 100
+            print(f"\n  First batch cls_labels positive ratio: {pos_ratio:.2f}%")
+            print(f"  CAM shape: {cams.shape}")
+            print(f"  CAM value range: [{cams.min().item():.4f}, {cams.max().item():.4f}]")
 
         if n_iter <= cfg.train.cam_iters:
             loss = 1.0 * cc_loss
@@ -245,9 +295,13 @@ def train(cfg):
 
             pred_cam = pred_cam.cpu().numpy().astype(np.int16)
 
-            logging.info(
-                "Iter: %d; Elasped: %s; ETA: %s; LR: %.3e; cc_loss: %.4f" % (
-                    n_iter + 1, delta, eta, cur_lr, avg_meter.pop('cc_loss'),))
+            # ========== 更详细的训练日志 ==========
+            print(f"\n[Iter {n_iter+1}/{cfg.train.max_iters}]")
+            print(f"  Elapsed: {delta}, ETA: {eta}")
+            print(f"  LR: {cur_lr:.3e}")
+            print(f"  cc_loss: {avg_meter.pop('cc_loss'):.4f}")
+            print(f"  CAM stats: mean={cams.mean().item():.4f}, std={cams.std().item():.4f}")
+            print(f"  Pred CAM positive ratio: {pred_cam.mean() / 255 * 100:.2f}%")
 
             grid_imgs_A, grid_cam_A = imutils.tensorboard_image(imgs=inputs_A.clone(), cam=valid_cam)
             grid_imgs_B, grid_cam_B = imutils.tensorboard_image(imgs=inputs_B.clone(), cam=valid_cam)
@@ -265,34 +319,40 @@ def train(cfg):
 
         if (n_iter + 1) % cfg.train.eval_iters == 0:
             ckpt_name = os.path.join(cfg.work_dir.ckpt_dir, "transwcd_iter_%d.pth" % (n_iter + 1))
-            logging.info('CD Validating...')
+            print('\n' + "=" * 40)
+            print('CD Validating...')
+            print("=" * 40)
             torch.save(transwcd.state_dict(), ckpt_name)
             cam_score, labels = validate(model=transwcd, data_loader=val_loader, cfg=cfg)  # _ 为 labels
 
             if cam_score['f1'][1] > best_F1:
                 best_F1 = cam_score['f1'][1]
                 best_iter = n_iter + 1
-            logging.info("cams score: %s, \n[best_iter]: %s", cam_score, best_iter)
-
-            if cam_score['f1'][1] > best_F1:
-                best_F1 = cam_score['f1'][1]
-                best_iter = n_iter + 1
+            
+            # ========== 打印验证结果 ==========
+            print(f"\n  Validation Results:")
+            print(f"    Precision (change): {cam_score['precision'][1]:.4f}")
+            print(f"    Recall (change):    {cam_score['recall'][1]:.4f}")
+            print(f"    F1 (change):        {cam_score['f1'][1]:.4f}")
+            print(f"    IoU (change):       {cam_score['iou'][1]:.4f}")
+            print(f"    Best F1:            {best_F1:.4f} [iter {best_iter}]")
+            print("=" * 60)
               
     return True
 
 if __name__ == "__main__":
     args = parser.parse_args()
     cfg = OmegaConf.load(args.config)
-    
+
     # 命令行覆盖 root_dir
     if args.root_dir is not None:
         cfg.dataset.root_dir = args.root_dir
-        logging.info(f"Override dataset root_dir with: {args.root_dir}")
-    
+        print(f"Override dataset root_dir with: {args.root_dir}")
+
     # 命令行覆盖 backbone config
     if args.pretrained_backbone is not None:
         cfg.backbone.pretrained_backbone = args.pretrained_backbone
-        logging.info(f"Override backbone config with: {args.pretrained_backbone}")
+        print(f"Override backbone pretrained_backbone with: {args.pretrained_backbone}")
 
 
     timestamp = "{0:%Y-%m-%d-%H-%M}".format(datetime.datetime.now())
@@ -308,6 +368,18 @@ if __name__ == "__main__":
     setup_logger(filename=os.path.join(cfg.work_dir.dir, timestamp + '.log'))
     logging.info('\nargs: %s' % args)
     logging.info('\nconfigs: %s' % cfg)
+    
+    # ========== 打印配置信息 ==========
+    print("\n" + "=" * 60)
+    print("Configuration:")
+    print("=" * 60)
+    print(f"  Config file: {args.config}")
+    print(f"  Dataset root: {cfg.dataset.root_dir}")
+    print(f"  Backbone: {cfg.backbone.config}")
+    print(f"  Scheme: {cfg.scheme}")
+    print(f"  Work dir: {cfg.work_dir.dir}")
+    print(f"  Timestamp: {timestamp}")
+    print("=" * 60)
 
     setup_seed(1)
     train(cfg=cfg)

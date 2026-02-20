@@ -2,7 +2,7 @@ torch
 torchvision
 imageio
 joblib
-matplotlib=
+matplotlib
 mmcv
 mmcv_full
 numpy

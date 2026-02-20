@@ -9,7 +9,7 @@ numpy
 omegaconf
 opencv_python
 Pillow
-pydensecrf
+git+https://github.com/lucasb-eyer/pydensecrf.git
 scikit_learn
 tifffile
 timm

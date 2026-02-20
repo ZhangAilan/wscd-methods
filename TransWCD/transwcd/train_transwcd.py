@@ -244,7 +244,10 @@ def train(cfg):
     print(f"  Val samples: {len(val_dataset)}")
     print("=" * 60)
     
-    for n_iter in range(cfg.train.max_iters):
+    # 使用 tqdm 包装训练循环，每次迭代都显示进度
+    pbar = tqdm(range(cfg.train.max_iters), ncols=100, ascii=" >=")
+    
+    for n_iter in pbar:
 
         try:
             img_name, inputs_A, inputs_B, cls_labels, img_box = next(train_loader_iter)
@@ -287,6 +290,9 @@ def train(cfg):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        
+        # ========== 每次迭代更新进度条 ==========
+        pbar.set_description(f"Loss: {cc_loss.item():.4f}")
 
         if (n_iter + 1) % cfg.train.log_iters == 0:
 
@@ -294,12 +300,13 @@ def train(cfg):
             cur_lr = optimizer.param_groups[0]['lr']
 
             pred_cam = pred_cam.cpu().numpy().astype(np.int16)
+            cur_loss = avg_meter.pop('cc_loss')
 
-            # ========== 更详细的训练日志 ==========
+            # ========== 详细训练日志（每 log_iters 次迭代打印一次） ==========
             print(f"\n[Iter {n_iter+1}/{cfg.train.max_iters}]")
             print(f"  Elapsed: {delta}, ETA: {eta}")
             print(f"  LR: {cur_lr:.3e}")
-            print(f"  cc_loss: {avg_meter.pop('cc_loss'):.4f}")
+            print(f"  cc_loss: {cur_loss:.4f}")
             print(f"  CAM stats: mean={cams.mean().item():.4f}, std={cams.std().item():.4f}")
             print(f"  Pred CAM positive ratio: {pred_cam.mean() / 255 * 100:.2f}%")
 

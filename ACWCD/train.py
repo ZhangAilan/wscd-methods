@@ -58,6 +58,22 @@ def setup_logger(filename='test.log'):
     cHandler.setFormatter(logFormatter)
     logger.addHandler(cHandler)
 
+
+def setup_train_log(filename='train_log.txt'):
+    """创建训练日志文件处理器，用于记录训练过程信息"""
+    train_log_path = os.path.join(os.path.dirname(filename), 'train_log.txt')
+    train_log_handler = logging.FileHandler(train_log_path, mode='w', encoding='utf-8')
+    train_log_handler.setFormatter(logging.Formatter('%(message)s'))
+    logger = logging.getLogger()
+    logger.addHandler(train_log_handler)
+    return train_log_path
+
+
+def log_to_file(message):
+    """将信息打印到控制台并记录到日志文件"""
+    print(message)
+    logging.info(message)
+
 def cal_eta(time0, cur_iter, total_iter):
     time_now = datetime.datetime.now()
     time_now = time_now.replace(microsecond=0)
@@ -144,8 +160,8 @@ def train(cfg):
     time0 = time0.replace(microsecond=0)
 
     # ========== 数据集加载信息 ==========
-    print("=" * 60)
-    print("Loading datasets...")
+    log_to_file("=" * 60)
+    log_to_file("Loading datasets...")
 
     train_dataset = weaklyCD.ClsDataset(
         root_dir=cfg.dataset.root_dir,
@@ -159,12 +175,12 @@ def train(cfg):
         num_classes=cfg.dataset.num_classes,
     )
 
-    print(f"  Train dataset: {len(train_dataset)} samples")
-    print(f"    - root_dir: {cfg.dataset.root_dir}")
-    print(f"    - name_list_dir: {cfg.dataset.name_list_dir}")
-    print(f"    - split: {cfg.train.split}")
-    print(f"    - crop_size: {cfg.dataset.crop_size}")
-    print(f"    - batch_size: {cfg.train.batch_size}")
+    log_to_file(f"  Train dataset: {len(train_dataset)} samples")
+    log_to_file(f"    - root_dir: {cfg.dataset.root_dir}")
+    log_to_file(f"    - name_list_dir: {cfg.dataset.name_list_dir}")
+    log_to_file(f"    - split: {cfg.train.split}")
+    log_to_file(f"    - crop_size: {cfg.dataset.crop_size}")
+    log_to_file(f"    - batch_size: {cfg.train.batch_size}")
 
     val_dataset = weaklyCD.CDDataset(
         root_dir=cfg.dataset.root_dir,
@@ -175,9 +191,9 @@ def train(cfg):
         num_classes=cfg.dataset.num_classes,
     )
 
-    print(f"  Val dataset: {len(val_dataset)} samples")
-    print(f"    - split: {cfg.val.split}")
-    print("=" * 60)
+    log_to_file(f"  Val dataset: {len(val_dataset)} samples")
+    log_to_file(f"    - split: {cfg.val.split}")
+    log_to_file("=" * 60)
 
     train_loader = DataLoader(train_dataset,
                               batch_size=cfg.train.batch_size,
@@ -196,12 +212,12 @@ def train(cfg):
     device = torch.device('cuda')
 
     # ========== 模型信息 ==========
-    print("=" * 60)
-    print("Building model...")
-    print(f"  Backbone: {cfg.backbone.config}")
-    print(f"  Stride: {cfg.backbone.stride}")
-    print(f"  Pretrained: {args.pretrained}")
-    print(f"  Pooling: {args.pooling}")
+    log_to_file("=" * 60)
+    log_to_file("Building model...")
+    log_to_file(f"  Backbone: {cfg.backbone.config}")
+    log_to_file(f"  Stride: {cfg.backbone.stride}")
+    log_to_file(f"  Pretrained: {args.pretrained}")
+    log_to_file(f"  Pooling: {args.pooling}")
 
     acwcd = ACWCD(
         backbone=cfg.backbone.config,
@@ -210,15 +226,15 @@ def train(cfg):
         embedding_dim=256,
         pretrained=args.pretrained,
         pooling=args.pooling,
-        pretrained_backbone=cfg.backbone.pretrained_backbone,   
+        pretrained_backbone=cfg.backbone.pretrained_backbone,
     )
 
     # 打印模型参数量
     total_params = sum(p.numel() for p in acwcd.parameters())
     trainable_params = sum(p.numel() for p in acwcd.parameters() if p.requires_grad)
-    print(f"  Total parameters: {total_params:,}")
-    print(f"  Trainable parameters: {trainable_params:,}")
-    print("=" * 60)
+    log_to_file(f"  Total parameters: {total_params:,}")
+    log_to_file(f"  Trainable parameters: {trainable_params:,}")
+    log_to_file("=" * 60)
 
     param_groups = acwcd.get_param_groups()
     par = PAR(num_iter=10, dilations=cfg.dataset.dilations)
@@ -273,17 +289,17 @@ def train(cfg):
     best_F1_pseudo_labels = 0.0
     best_iter_seg = 0.0
     best_iter_pseudo_labels = 0.0
-    
+
     # ========== 训练开始信息 ==========
-    print("=" * 60)
-    print("Start training...")
-    print(f"  Max iterations: {cfg.train.max_iters}")
-    print(f"  CAM iters: {cfg.train.cam_iters}")
-    print(f"  Eval iters: {cfg.train.eval_iters}")
-    print(f"  Log iters: {cfg.train.log_iters}")
-    print(f"  Train samples: {len(train_dataset)}")
-    print(f"  Val samples: {len(val_dataset)}")
-    print("=" * 60)
+    log_to_file("=" * 60)
+    log_to_file("Start training...")
+    log_to_file(f"  Max iterations: {cfg.train.max_iters}")
+    log_to_file(f"  CAM iters: {cfg.train.cam_iters}")
+    log_to_file(f"  Eval iters: {cfg.train.eval_iters}")
+    log_to_file(f"  Log iters: {cfg.train.log_iters}")
+    log_to_file(f"  Train samples: {len(train_dataset)}")
+    log_to_file(f"  Val samples: {len(val_dataset)}")
+    log_to_file("=" * 60)
     
     # 使用 tqdm 包装训练循环，每次迭代都显示进度
     pbar = tqdm(range(cfg.train.max_iters), ncols=100, ascii=" >=")
@@ -380,13 +396,13 @@ def train(cfg):
             cur_cp_loss2 = avg_meter.pop('cp_loss2')
 
             # ========== 详细训练日志（每 log_iters 次迭代打印一次） ==========
-            print(f"\n[Iter {n_iter+1}/{cfg.train.max_iters}]")
-            print(f"  Elapsed: {delta}, ETA: {eta}")
-            print(f"  LR: {cur_lr:.3e}")
-            print(f"  lp_loss: {cur_lp_loss:.4f}")
-            print(f"  cp_loss1: {cur_cp_loss1:.4f}")
-            print(f"  seg_loss: {cur_seg_loss:.4f}")
-            print(f"  cp_loss2: {cur_cp_loss2:.4f}")
+            log_to_file(f"\n[Iter {n_iter+1}/{cfg.train.max_iters}]")
+            log_to_file(f"  Elapsed: {delta}, ETA: {eta}")
+            log_to_file(f"  LR: {cur_lr:.3e}")
+            log_to_file(f"  lp_loss: {cur_lp_loss:.4f}")
+            log_to_file(f"  cp_loss1: {cur_cp_loss1:.4f}")
+            log_to_file(f"  seg_loss: {cur_seg_loss:.4f}")
+            log_to_file(f"  cp_loss2: {cur_cp_loss2:.4f}")
 
             grid_imgs_A, grid_cam_A = imutils.tensorboard_image(imgs=inputs_A.clone(), cam=valid_cam)
             grid_imgs_B, grid_cam_B = imutils.tensorboard_image(imgs=inputs_B.clone(), cam=valid_cam)
@@ -414,9 +430,9 @@ def train(cfg):
         if (n_iter + 1) % cfg.train.eval_iters == 0:
 
             ckpt_name = os.path.join(cfg.work_dir.ckpt_dir, "acwcd_iter_%d.pth" % (n_iter + 1))
-            print('\n' + "=" * 40)
-            print('CD Validating...')
-            print("=" * 40)
+            log_to_file('\n' + "=" * 40)
+            log_to_file('CD Validating...')
+            log_to_file("=" * 40)
             torch.save(acwcd.state_dict(), ckpt_name)
             seg_score, pseudo_labels_score, _ = validate(model=acwcd, data_loader=val_loader, cfg=cfg)  # _ 为 labels
 
@@ -429,17 +445,17 @@ def train(cfg):
                 best_iter_pseudo_labels = n_iter + 1
 
             # ========== 打印验证结果 ==========
-            print(f"\n  Pseudo Labels Score:")
-            print(f"    Precision (change): {pseudo_labels_score['precision'][1]:.4f}")
-            print(f"    Recall (change):    {pseudo_labels_score['recall'][1]:.4f}")
-            print(f"    F1 (change):        {pseudo_labels_score['f1'][1]:.4f}")
-            print(f"    Best F1:            {best_F1_pseudo_labels:.4f} [iter {best_iter_pseudo_labels}]")
-            print(f"\n  Segmentation Score:")
-            print(f"    Precision (change): {seg_score['precision'][1]:.4f}")
-            print(f"    Recall (change):    {seg_score['recall'][1]:.4f}")
-            print(f"    F1 (change):        {seg_score['f1'][1]:.4f}")
-            print(f"    Best F1:            {best_F1_seg:.4f} [iter {best_iter_seg}]")
-            print("=" * 60)
+            log_to_file(f"\n  Pseudo Labels Score:")
+            log_to_file(f"    Precision (change): {pseudo_labels_score['precision'][1]:.4f}")
+            log_to_file(f"    Recall (change):    {pseudo_labels_score['recall'][1]:.4f}")
+            log_to_file(f"    F1 (change):        {pseudo_labels_score['f1'][1]:.4f}")
+            log_to_file(f"    Best F1:            {best_F1_pseudo_labels:.4f} [iter {best_iter_pseudo_labels}]")
+            log_to_file(f"\n  Segmentation Score:")
+            log_to_file(f"    Precision (change): {seg_score['precision'][1]:.4f}")
+            log_to_file(f"    Recall (change):    {seg_score['recall'][1]:.4f}")
+            log_to_file(f"    F1 (change):        {seg_score['f1'][1]:.4f}")
+            log_to_file(f"    Best F1:            {best_F1_seg:.4f} [iter {best_iter_seg}]")
+            log_to_file("=" * 60)
 
     return True
 
@@ -450,12 +466,12 @@ if __name__ == "__main__":
     # 命令行覆盖 root_dir
     if args.root_dir is not None:
         cfg.dataset.root_dir = args.root_dir
-        print(f"Override dataset root_dir with: {args.root_dir}")
+        log_to_file(f"Override dataset root_dir with: {args.root_dir}")
 
     # 命令行覆盖 backbone config
     if args.pretrained_backbone is not None:
         cfg.backbone.pretrained_backbone = args.pretrained_backbone
-        print(f"Override backbone config with: {args.pretrained_backbone}")
+        log_to_file(f"Override backbone config with: {args.pretrained_backbone}")
 
     timestamp = "{0:%Y-%m-%d-%H-%M}".format(datetime.datetime.now())
 
@@ -467,21 +483,24 @@ if __name__ == "__main__":
     os.makedirs(cfg.work_dir.pred_dir, exist_ok=True)
     os.makedirs(cfg.work_dir.logger_dir, exist_ok=True)
 
-    setup_logger(filename=os.path.join(cfg.work_dir.dir, timestamp + '.log'))
+    log_filename = os.path.join(cfg.work_dir.dir, timestamp + '.log')
+    setup_logger(filename=log_filename)
+    train_log_path = setup_train_log(filename=log_filename)
     logging.info('\nargs: %s' % args)
     logging.info('\nconfigs: %s' % cfg)
 
     # ========== 打印配置信息 ==========
-    print("\n" + "=" * 60)
-    print("Configuration:")
-    print("=" * 60)
-    print(f"  Config file: {args.config}")
-    print(f"  Dataset root: {cfg.dataset.root_dir}")
-    print(f"  Backbone: {cfg.backbone.config}")
-    print(f"  Scheme: ACWCD")
-    print(f"  Work dir: {cfg.work_dir.dir}")
-    print(f"  Timestamp: {timestamp}")
-    print("=" * 60)
+    log_to_file("\n" + "=" * 60)
+    log_to_file("Configuration:")
+    log_to_file("=" * 60)
+    log_to_file(f"  Config file: {args.config}")
+    log_to_file(f"  Dataset root: {cfg.dataset.root_dir}")
+    log_to_file(f"  Backbone: {cfg.backbone.config}")
+    log_to_file(f"  Scheme: ACWCD")
+    log_to_file(f"  Work dir: {cfg.work_dir.dir}")
+    log_to_file(f"  Timestamp: {timestamp}")
+    log_to_file("=" * 60)
+    log_to_file(f"Train log saved to: {train_log_path}")
 
     setup_seed(1)
     train(cfg=cfg)

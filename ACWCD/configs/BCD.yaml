@@ -5,7 +5,7 @@ backbone:
   comments: None
 
 dataset:
-  root_dir: D:\project\CD\Dataset\WHU-CD-256
+  root_dir: None
   name_list_dir: datasets/BCD
   num_classes: 2
   crop_size: 256

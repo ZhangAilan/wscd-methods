@@ -26,6 +26,6 @@ def process_image_folder(folder_path, output_npy_path):
     np.save(output_npy_path, label_dict)
     print(f"Labels saved to {output_npy_path}")
 
-folder_path = "D:\project\CD\Dataset\WHU-CD-256\label"
-output_npy_path = r"D:\project\CD\Dataset\WHU-CD-256\imagelevel_labels.npy"
+folder_path = "D:\project\CD\Dataset\LEVIR-MCI-dataset_converted\label"
+output_npy_path = r"D:\project\CD\Dataset\LEVIR-MCI-dataset_converted\imagelevel_labels.npy"
 process_image_folder(folder_path, output_npy_path)

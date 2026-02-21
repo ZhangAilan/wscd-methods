@@ -210,6 +210,7 @@ def train(cfg):
         embedding_dim=256,
         pretrained=args.pretrained,
         pooling=args.pooling,
+        pretrained_backbone=cfg.backbone.pretrained_backbone,   
     )
 
     # 打印模型参数量

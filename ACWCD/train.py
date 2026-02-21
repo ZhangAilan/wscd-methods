@@ -33,9 +33,10 @@ parser.add_argument("--config",
 parser.add_argument("--pooling", default="gmp", type=str, help="pooling method")
 parser.add_argument("--crop_size", default=256, type=int, help="crop_size")
 parser.add_argument('--pretrained', default= True, type=bool, help="pretrained")
-parser.add_argument('--checkpoint_path', default= False, type=str, help="checkpoint_path" )
 parser.add_argument("--seg_detach", action="store_true", help="detach seg")
 parser.add_argument('--backend', default='nccl')
+parser.add_argument("--root_dir", default=None, type=str, help="override dataset root_dir in config")
+parser.add_argument("--pretrained_backbone", default=None, type=str, help="override backbone config (e.g., mit_b0, mit_b1, mit_b2)")
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -142,6 +143,10 @@ def train(cfg):
     time0 = datetime.datetime.now()
     time0 = time0.replace(microsecond=0)
 
+    # ========== 数据集加载信息 ==========
+    print("=" * 60)
+    print("Loading datasets...")
+
     train_dataset = weaklyCD.ClsDataset(
         root_dir=cfg.dataset.root_dir,
         name_list_dir=cfg.dataset.name_list_dir,
@@ -154,6 +159,13 @@ def train(cfg):
         num_classes=cfg.dataset.num_classes,
     )
 
+    print(f"  Train dataset: {len(train_dataset)} samples")
+    print(f"    - root_dir: {cfg.dataset.root_dir}")
+    print(f"    - name_list_dir: {cfg.dataset.name_list_dir}")
+    print(f"    - split: {cfg.train.split}")
+    print(f"    - crop_size: {cfg.dataset.crop_size}")
+    print(f"    - batch_size: {cfg.train.batch_size}")
+
     val_dataset = weaklyCD.CDDataset(
         root_dir=cfg.dataset.root_dir,
         name_list_dir=cfg.dataset.name_list_dir,
@@ -162,6 +174,10 @@ def train(cfg):
         aug=False,
         num_classes=cfg.dataset.num_classes,
     )
+
+    print(f"  Val dataset: {len(val_dataset)} samples")
+    print(f"    - split: {cfg.val.split}")
+    print("=" * 60)
 
     train_loader = DataLoader(train_dataset,
                               batch_size=cfg.train.batch_size,
@@ -179,6 +195,14 @@ def train(cfg):
                             drop_last=False)
     device = torch.device('cuda')
 
+    # ========== 模型信息 ==========
+    print("=" * 60)
+    print("Building model...")
+    print(f"  Backbone: {cfg.backbone.config}")
+    print(f"  Stride: {cfg.backbone.stride}")
+    print(f"  Pretrained: {args.pretrained}")
+    print(f"  Pooling: {args.pooling}")
+
     acwcd = ACWCD(
         backbone=cfg.backbone.config,
         stride=cfg.backbone.stride,
@@ -188,6 +212,12 @@ def train(cfg):
         pooling=args.pooling,
     )
 
+    # 打印模型参数量
+    total_params = sum(p.numel() for p in acwcd.parameters())
+    trainable_params = sum(p.numel() for p in acwcd.parameters() if p.requires_grad)
+    print(f"  Total parameters: {total_params:,}")
+    print(f"  Trainable parameters: {trainable_params:,}")
+    print("=" * 60)
 
     param_groups = acwcd.get_param_groups()
     par = PAR(num_iter=10, dilations=cfg.dataset.dilations)
@@ -242,7 +272,22 @@ def train(cfg):
     best_F1_pseudo_labels = 0.0
     best_iter_seg = 0.0
     best_iter_pseudo_labels = 0.0
-    for n_iter in range(cfg.train.max_iters):
+    
+    # ========== 训练开始信息 ==========
+    print("=" * 60)
+    print("Start training...")
+    print(f"  Max iterations: {cfg.train.max_iters}")
+    print(f"  CAM iters: {cfg.train.cam_iters}")
+    print(f"  Eval iters: {cfg.train.eval_iters}")
+    print(f"  Log iters: {cfg.train.log_iters}")
+    print(f"  Train samples: {len(train_dataset)}")
+    print(f"  Val samples: {len(val_dataset)}")
+    print("=" * 60)
+    
+    # 使用 tqdm 包装训练循环，每次迭代都显示进度
+    pbar = tqdm(range(cfg.train.max_iters), ncols=100, ascii=" >=")
+    
+    for n_iter in pbar:
 
         try:
             img_name, inputs_A, inputs_B, cls_labels, img_box = next(train_loader_iter)
@@ -314,6 +359,9 @@ def train(cfg):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        
+        # ========== 每次迭代更新进度条 ==========
+        pbar.set_description(f"LP: {lp_loss.item():.4f}, CP1: {cp_loss1.item():.4f}, Seg: {seg_loss.item():.4f}")
 
         if (n_iter + 1) % cfg.train.log_iters == 0:
 
@@ -324,10 +372,20 @@ def train(cfg):
             preds = torch.argmax(segs, dim=1, ).cpu().numpy().astype(np.int16)
             pseudo_label = pseudo_label.cpu().numpy().astype(np.int16)
             final_gts = final_pseudo_labels.cpu().numpy().astype(np.int16)
+            
+            cur_lp_loss = avg_meter.pop('lp_loss')
+            cur_cp_loss1 = avg_meter.pop('cp_loss1')
+            cur_seg_loss = avg_meter.pop('seg_loss')
+            cur_cp_loss2 = avg_meter.pop('cp_loss2')
 
-            logging.info(
-                "Iter: %d; Elasped: %s; ETA: %s; LR: %.3e; lp_loss: %.4f, cp_loss1: %.4f, seg_loss: %.4f, cp_loss2: %.4f" % (
-                    n_iter + 1, delta, eta, cur_lr, avg_meter.pop('lp_loss'), avg_meter.pop('cp_loss1'), avg_meter.pop('seg_loss'), avg_meter.pop('cp_loss2')))
+            # ========== 详细训练日志（每 log_iters 次迭代打印一次） ==========
+            print(f"\n[Iter {n_iter+1}/{cfg.train.max_iters}]")
+            print(f"  Elapsed: {delta}, ETA: {eta}")
+            print(f"  LR: {cur_lr:.3e}")
+            print(f"  lp_loss: {cur_lp_loss:.4f}")
+            print(f"  cp_loss1: {cur_cp_loss1:.4f}")
+            print(f"  seg_loss: {cur_seg_loss:.4f}")
+            print(f"  cp_loss2: {cur_cp_loss2:.4f}")
 
             grid_imgs_A, grid_cam_A = imutils.tensorboard_image(imgs=inputs_A.clone(), cam=valid_cam)
             grid_imgs_B, grid_cam_B = imutils.tensorboard_image(imgs=inputs_B.clone(), cam=valid_cam)
@@ -355,7 +413,9 @@ def train(cfg):
         if (n_iter + 1) % cfg.train.eval_iters == 0:
 
             ckpt_name = os.path.join(cfg.work_dir.ckpt_dir, "acwcd_iter_%d.pth" % (n_iter + 1))
-            logging.info('CD Validating...')
+            print('\n' + "=" * 40)
+            print('CD Validating...')
+            print("=" * 40)
             torch.save(acwcd.state_dict(), ckpt_name)
             seg_score, pseudo_labels_score, _ = validate(model=acwcd, data_loader=val_loader, cfg=cfg)  # _ 为 labels
 
@@ -367,8 +427,18 @@ def train(cfg):
                 best_F1_pseudo_labels = pseudo_labels_score['f1'][1]
                 best_iter_pseudo_labels = n_iter + 1
 
-            logging.info("pseudo_labels_score: %s, \n[best_iter]: %d", pseudo_labels_score, best_iter_pseudo_labels)
-            logging.info("seg_score: %s, \n[best_iter]: %d", seg_score, best_iter_seg)
+            # ========== 打印验证结果 ==========
+            print(f"\n  Pseudo Labels Score:")
+            print(f"    Precision (change): {pseudo_labels_score['precision'][1]:.4f}")
+            print(f"    Recall (change):    {pseudo_labels_score['recall'][1]:.4f}")
+            print(f"    F1 (change):        {pseudo_labels_score['f1'][1]:.4f}")
+            print(f"    Best F1:            {best_F1_pseudo_labels:.4f} [iter {best_iter_pseudo_labels}]")
+            print(f"\n  Segmentation Score:")
+            print(f"    Precision (change): {seg_score['precision'][1]:.4f}")
+            print(f"    Recall (change):    {seg_score['recall'][1]:.4f}")
+            print(f"    F1 (change):        {seg_score['f1'][1]:.4f}")
+            print(f"    Best F1:            {best_F1_seg:.4f} [iter {best_iter_seg}]")
+            print("=" * 60)
 
     return True
 
@@ -376,6 +446,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
     cfg = OmegaConf.load(args.config)
 
+    # 命令行覆盖 root_dir
+    if args.root_dir is not None:
+        cfg.dataset.root_dir = args.root_dir
+        print(f"Override dataset root_dir with: {args.root_dir}")
+
+    # 命令行覆盖 backbone config
+    if args.pretrained_backbone is not None:
+        cfg.backbone.pretrained_backbone = args.pretrained_backbone
+        print(f"Override backbone config with: {args.pretrained_backbone}")
 
     timestamp = "{0:%Y-%m-%d-%H-%M}".format(datetime.datetime.now())
 
@@ -390,6 +469,18 @@ if __name__ == "__main__":
     setup_logger(filename=os.path.join(cfg.work_dir.dir, timestamp + '.log'))
     logging.info('\nargs: %s' % args)
     logging.info('\nconfigs: %s' % cfg)
+
+    # ========== 打印配置信息 ==========
+    print("\n" + "=" * 60)
+    print("Configuration:")
+    print("=" * 60)
+    print(f"  Config file: {args.config}")
+    print(f"  Dataset root: {cfg.dataset.root_dir}")
+    print(f"  Backbone: {cfg.backbone.config}")
+    print(f"  Scheme: ACWCD")
+    print(f"  Work dir: {cfg.work_dir.dir}")
+    print(f"  Timestamp: {timestamp}")
+    print("=" * 60)
 
     setup_seed(1)
     train(cfg=cfg)

@@ -7,7 +7,7 @@ import numpy as np
 
 
 class ACWCD(nn.Module):
-    def __init__(self, backbone, num_classes=None, embedding_dim=256, stride=None, pretrained=None, pooling=None, ):
+    def __init__(self, backbone, num_classes=None, embedding_dim=256, stride=None, pretrained=None, pooling=None,pretrained_backbone=None):
         super().__init__()
         self.num_classes = num_classes
         self.embedding_dim = embedding_dim
@@ -18,7 +18,7 @@ class ACWCD(nn.Module):
         c1_in_channels, c2_in_channels, c3_in_channels, c4_in_channels = self.in_channels
 
         if pretrained:
-            state_dict = torch.load('pretrained/' + backbone + '.pth')
+            state_dict = torch.load(pretrained_backbone)
             state_dict.pop('head.weight')
             state_dict.pop('head.bias')
             self.encoder.load_state_dict(state_dict, )

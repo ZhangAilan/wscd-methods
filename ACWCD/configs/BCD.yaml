@@ -1,5 +1,6 @@
 backbone:
   config: mit_b1
+  pretrained_backbone: None
   stride: [4, 2, 2, 1]
   comments: None
 
